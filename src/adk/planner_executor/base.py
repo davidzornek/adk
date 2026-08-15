@@ -10,7 +10,9 @@ Hub pull. An optional ``prompt_manifest`` records which prompt versions were use
 in ``invoke_trace`` for eval/trace metadata.
 
 **Invoke output:** final graph state plus ``invoke_trace``, a dict with ``run_id`` (a fresh
-``uuid4()`` per call), ``variant``, ``session_label``, and ``prompt_manifest``.
+``uuid4()`` per call), ``variant``, ``session_label``, ``prompt_manifest``, ``latency_ms``
+(wall-clock time for the whole call), and ``tokens_in``/``tokens_out`` (summed from any node's
+``AnthropicRunnable``-style ``usage``, via the graph state's ``token_usage`` accumulator).
 Use :meth:`invoke_trace_metadata` for eval-harness-compatible metadata keys.
 Use :meth:`to_eval_run_result` to build a :class:`~adk.eval_harness.cases.RunResult`
 row from invoke output.
@@ -23,6 +25,7 @@ Topology-specific loops live in subclass graph builders only. Graph nodes resolv
 from __future__ import annotations
 
 import logging
+import time
 from abc import abstractmethod
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
@@ -35,8 +38,7 @@ from typing_extensions import override
 from .config import PlannerExecutorConfig
 
 if TYPE_CHECKING:
-    # eval_harness.cases doesn't exist until #9 lands; drop the ignore once it does.
-    from adk.eval_harness.cases import RunResult  # type: ignore[import-not-found]
+    from adk.eval_harness.cases import RunResult
 
 logger = logging.getLogger(__name__)
 
@@ -96,12 +98,23 @@ class PlannerExecutorBase(Runnable[dict[str, Any], dict[str, Any]]):
 
         return logical_graph_node_ids(self.graph)
 
-    def _build_invoke_trace(self, input: dict[str, Any], run_id: str) -> dict[str, Any]:
+    def _build_invoke_trace(
+        self,
+        input: dict[str, Any],
+        run_id: str,
+        *,
+        latency_ms: float,
+        token_usage: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        usage = token_usage or []
         return {
             "run_id": run_id,
             "variant": self.variant,
             "session_label": _session_label_from_input(input),
             "prompt_manifest": self._prompt_manifest,
+            "latency_ms": latency_ms,
+            "tokens_in": sum(u.get("input_tokens", 0) for u in usage),
+            "tokens_out": sum(u.get("output_tokens", 0) for u in usage),
         }
 
     @classmethod
@@ -127,6 +140,7 @@ class PlannerExecutorBase(Runnable[dict[str, Any], dict[str, Any]]):
             run_id=metadata.get("run_id"),
             output=output,
             metadata=metadata,
+            executed_steps=out.get("executed_steps"),
         )
 
     @override
@@ -139,9 +153,13 @@ class PlannerExecutorBase(Runnable[dict[str, Any], dict[str, Any]]):
         logger.info("Starting planner-executor graph (invoke) variant=%s", self.variant)
         state = self._input_to_state(input)
         run_id = str(uuid4())
+        start = time.perf_counter()
         out = dict(self.graph.invoke(state, config, **kwargs))
+        latency_ms = (time.perf_counter() - start) * 1000
         logger.info("Planner-executor graph execution complete (invoke)")
-        out[INVOKE_TRACE_KEY] = self._build_invoke_trace(input, run_id)
+        out[INVOKE_TRACE_KEY] = self._build_invoke_trace(
+            input, run_id, latency_ms=latency_ms, token_usage=out.get("token_usage"),
+        )
         return out
 
     @override
@@ -154,15 +172,19 @@ class PlannerExecutorBase(Runnable[dict[str, Any], dict[str, Any]]):
         logger.info("Starting planner-executor graph (stream) variant=%s", self.variant)
         state = self._input_to_state(input)
         run_id = str(uuid4())
+        start = time.perf_counter()
         last: dict[str, Any] | None = None
         for update in self.graph.stream(state, config, stream_mode="values", **kwargs):
             if last is not None:
                 yield last
             last = dict(update)
+        latency_ms = (time.perf_counter() - start) * 1000
         logger.info("Planner-executor graph execution complete (stream)")
         if last is None:
             return
-        last[INVOKE_TRACE_KEY] = self._build_invoke_trace(input, run_id)
+        last[INVOKE_TRACE_KEY] = self._build_invoke_trace(
+            input, run_id, latency_ms=latency_ms, token_usage=last.get("token_usage"),
+        )
         yield last
 
     def get_compiled_graph(self) -> Any:
