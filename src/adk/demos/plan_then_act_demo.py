@@ -6,7 +6,7 @@ web search and a sandboxed arithmetic evaluator. Nothing here re-implements plan
 plumbing - it composes existing pieces from ``build_plan_then_act_planner``,
 ``AnthropicRunnable``, ``DegradedModeExecutor``, and ``build_plan_then_act_graph``.
 
-See ``examples/plan_then_act_demo.ipynb`` for a walkthrough that imports this module and
+See ``docs/demos/plan_then_act_demo.ipynb`` for a walkthrough that imports this module and
 explains each piece as it's assembled and run.
 
 Deliberately contrived, on purpose: the default task ("look up the current population of

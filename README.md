@@ -12,7 +12,8 @@ src/adk/
 ├── eval_harness/       # LangSmith-backed evaluation harness (scoring, rollups)
 └── demos/              # Runnable demo agents built on the framework above
 docs/                   # Design docs: pattern cheatsheets, evaluation, composability guide
-examples/               # Notebooks walking through the demos in src/adk/demos/
+└── demos/              # Notebooks walking through the demos in src/adk/demos/, run and
+                         # committed with their output cells so they're readable on GitHub
 tests/
 ```
 
@@ -21,7 +22,7 @@ map of patterns and how they compose.
 
 ## Demo
 
-[examples/plan_then_act_demo.ipynb](examples/plan_then_act_demo.ipynb) walks through
+[docs/demos/plan_then_act_demo.ipynb](docs/demos/plan_then_act_demo.ipynb) walks through
 `adk.demos.plan_then_act_demo.DemoPlanThenActAgent`, a plan-then-act agent wired to a live
 Tavily web-search tool and a sandboxed calculator tool. The demo task is intentionally
 simple — the point is to prove the pattern's plumbing (real tool calls, executor routing,
