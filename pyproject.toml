@@ -35,9 +35,8 @@ packages = ["src/adk"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-# TODO: drop once #7 (base.py) lands; harness.py is permanently unreached scaffolding, excluded for good.
+# harness.py is permanently unreached scaffolding, excluded for good.
 extend-exclude = [
-    "src/adk/planner_executor/base.py",
     "src/adk/eval_harness/harness.py",
 ]
 
@@ -48,9 +47,8 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.11"
 packages = ["adk"]
 ignore_missing_imports = true
-# TODO: drop once #7 (base.py) lands; harness.py is permanently unreached scaffolding, excluded for good.
+# harness.py is permanently unreached scaffolding, excluded for good.
 exclude = [
-    "^src/adk/planner_executor/base\\.py$",
     "^src/adk/eval_harness/harness\\.py$",
 ]
 
