@@ -8,6 +8,7 @@ shape ``produce_plan_node`` (in ``graph.py``) expects from a planner Runnable.
 
 from __future__ import annotations
 
+import json
 from typing import Any, cast
 
 from anthropic import Anthropic
@@ -35,13 +36,33 @@ _OUTPUT_PLAN_TOOL_CHOICE = cast(
 )
 
 
+def _coerce_plan_input(raw: dict[str, Any]) -> dict[str, Any]:
+    """Work around an occasional Claude quirk: ``steps`` double-encoded as a JSON string.
+
+    On rare ``output_plan`` calls the model returns ``{"steps": "<the whole artifact,
+    re-serialized as a JSON string>"}`` instead of a native list, despite ``steps`` being
+    declared as an array in the tool's own schema. When that happens, decode the string and use
+    it in place of ``raw`` - a JSON-decode failure here is a genuinely malformed response and is
+    left to propagate.
+    """
+    steps = raw.get("steps")
+    if not isinstance(steps, str):
+        return raw
+    decoded = json.loads(steps)
+    return decoded if isinstance(decoded, dict) else {"steps": decoded}
+
+
 def _parse_plan_artifact(response: Any) -> dict[str, Any]:
     for block in response.content:
         if (
             getattr(block, "type", None) == "tool_use"
             and getattr(block, "name", None) == _OUTPUT_PLAN_TOOL_NAME
         ):
-            return {"plan_artifact": PlanThenActArtifact.model_validate(block.input)}
+            return {
+                "plan_artifact": PlanThenActArtifact.model_validate(
+                    _coerce_plan_input(block.input),
+                ),
+            }
     raise ValueError(
         f"Anthropic response did not include a {_OUTPUT_PLAN_TOOL_NAME!r} tool_use block",
     )
