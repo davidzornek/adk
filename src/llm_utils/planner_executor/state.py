@@ -89,8 +89,5 @@ class InterleavedPlannerExecutorState(TypedDict, total=False):
     observations: Annotated[list[str], operator.add]
     executed_steps: Annotated[list[dict[str, Any]], operator.add]
     max_iterations: int
-    draft_title: str
-    draft_body: str
-    draft_cta_label: str
-    draft_cta_action: str
+    draft_output: dict[str, Any] | None
     stopped_reason: str

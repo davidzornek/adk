@@ -76,12 +76,12 @@ def draft_planner_executor(
 
     Args:
         state: Graph state providing ``task``, ``observations``, and ``context``.
-        llm: Chat model used to produce structured ``DraftOutput`` JSON.
+        llm: Chat model used to produce the structured draft output JSON.
         drafter_system: Static system prompt (typically from LangSmith Hub).
         config: Optional LangChain runnable config for trace nesting under the graph run.
 
     Returns:
-        Dict with ``draft_title``, ``draft_body``, ``draft_cta_label``, ``draft_cta_action``.
+        Dict with ``draft_output`` (the structured draft produced by the drafter LLM).
     """
     return draft_state_update(
         dict(state),
@@ -160,10 +160,10 @@ def build_planner_executor_graph(
             drafter_system=drafter_system,
             config=config,
         )
-        title = result.get("draft_title") or ""
+        preview = json.dumps(result.get("draft_output"), default=str)
         logger.info(
-            "=== DRAFT NODE COMPLETE title=%r ===",
-            title[:120] + ("..." if len(title) > 120 else ""),
+            "=== DRAFT NODE COMPLETE draft_output=%s ===",
+            preview[:120] + ("..." if len(preview) > 120 else ""),
         )
         return result
 
