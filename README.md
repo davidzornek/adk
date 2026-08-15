@@ -9,13 +9,25 @@ LangSmith datasets.
 ```
 src/adk/
 ├── planner_executor/   # LangGraph-backed planner-executor agent base classes
-└── eval_harness/       # LangSmith-backed evaluation harness (scoring, rollups)
+├── eval_harness/       # LangSmith-backed evaluation harness (scoring, rollups)
+└── demos/              # Runnable demo agents built on the framework above
 docs/                   # Design docs: pattern cheatsheets, evaluation, composability guide
+examples/               # Notebooks walking through the demos in src/adk/demos/
 tests/
 ```
 
 See [docs/1_intro_and_contents.md](docs/1_intro_and_contents.md) for the full
 map of patterns and how they compose.
+
+## Demo
+
+[examples/plan_then_act_demo.ipynb](examples/plan_then_act_demo.ipynb) walks through
+`adk.demos.plan_then_act_demo.DemoPlanThenActAgent`, a plan-then-act agent wired to a live
+Tavily web-search tool and a sandboxed calculator tool. It can also be run headlessly:
+
+```bash
+uv run python -m adk.demos.plan_then_act_demo "<task>"
+```
 
 ## Setup
 

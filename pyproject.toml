@@ -16,6 +16,7 @@ dependencies = [
     "langgraph",
     "langsmith",
     "pydantic>=2",
+    "python-dotenv",
     "tavily-python>=0.7.27",
     "typing-extensions",
 ]
@@ -27,6 +28,9 @@ dev = [
     "ruff",
     "mypy",
     "pre-commit",
+    "jupyter",
+    "ipykernel",
+    "grandalf",
 ]
 
 [tool.hatch.build.targets.wheel]
