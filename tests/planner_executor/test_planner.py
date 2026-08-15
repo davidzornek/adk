@@ -5,8 +5,8 @@ from typing import Any
 
 import pytest
 
-from llm_utils.planner_executor.planner import _OUTPUT_PLAN_TOOL, build_plan_then_act_planner
-from llm_utils.planner_executor.state import PlanThenActArtifact, PlanThenActStep
+from adk.planner_executor.planner import _OUTPUT_PLAN_TOOL, build_plan_then_act_planner
+from adk.planner_executor.state import PlanThenActArtifact, PlanThenActStep
 
 
 class _FakeMessages:

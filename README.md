@@ -7,7 +7,7 @@ LangSmith datasets.
 ## Layout
 
 ```
-src/llm_utils/
+src/adk/
 ├── planner_executor/   # LangGraph-backed planner-executor agent base classes
 └── eval_harness/       # LangSmith-backed evaluation harness (scoring, rollups)
 docs/                   # Design docs: pattern cheatsheets, evaluation, composability guide

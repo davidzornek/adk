@@ -3,7 +3,7 @@ from __future__ import annotations
 import types
 from typing import Any
 
-from llm_utils.anthropic_runnables import AnthropicRunnable
+from adk.anthropic_runnables import AnthropicRunnable
 
 
 class _FakeMessages:

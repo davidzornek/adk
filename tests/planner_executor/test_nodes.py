@@ -6,12 +6,12 @@ from typing import Any
 
 import pytest
 
-from llm_utils.planner_executor.config import PlannerExecutorConfig
-from llm_utils.planner_executor.nodes import (
+from adk.planner_executor.config import PlannerExecutorConfig
+from adk.planner_executor.nodes import (
     PlanThenActExecutionCoordinator,
     draft_state_update,
 )
-from llm_utils.planner_executor.state import PlanThenActStep
+from adk.planner_executor.state import PlanThenActStep
 
 
 class _FakeExecutor:

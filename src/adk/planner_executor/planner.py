@@ -1,6 +1,6 @@
 """Anthropic-backed planner for the plan-then-act topology.
 
-Configures the general-purpose :class:`~llm_utils.anthropic_runnables.AnthropicRunnable` with
+Configures the general-purpose :class:`~adk.anthropic_runnables.AnthropicRunnable` with
 a forced ``output_plan`` tool call - schema derived from :class:`PlanThenActArtifact` itself -
 so its response always parses cleanly into ``{"plan_artifact": PlanThenActArtifact}``, the
 shape ``produce_plan_node`` (in ``graph.py``) expects from a planner Runnable.

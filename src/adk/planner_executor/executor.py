@@ -2,13 +2,13 @@
 
 Each executor owns one or more capability tools and runs the one a plan step names
 (``next_tool_name``). Unlike the fail-fast ``InterleavedExecutor`` (in
-:mod:`~llm_utils.planner_executor.nodes`), a :class:`DegradedModeExecutor` catches
+:mod:`~adk.planner_executor.nodes`), a :class:`DegradedModeExecutor` catches
 any tool exception and resolves it to a structured *degraded* step carrying the executor's
 ``degraded_mode`` message - so one failing tool degrades its own step instead of failing
 the whole turn.
 
 It satisfies the executor contract of
-:class:`~llm_utils.planner_executor.nodes.PlanThenActExecutionCoordinator`
+:class:`~adk.planner_executor.nodes.PlanThenActExecutionCoordinator`
 (consume ``next_tool_name`` / ``next_tool_args`` / ``context``; return ``observations``
 and ``executed_steps``), so it drops into a coordinator's executor map keyed by
 ``executor_id``. Tools are plain callables ``(args, ctx) -> payload``, injected by the
