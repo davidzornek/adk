@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from adk.eval_harness.cases import RunResult
 from adk.planner_executor.base import INVOKE_TRACE_KEY, PlannerExecutorBase
 from adk.planner_executor.config import PlannerExecutorConfig
 from adk.planner_executor.graph import build_plan_then_act_graph
@@ -9,11 +10,17 @@ from adk.planner_executor.state import PlanThenActArtifact, PlanThenActStep
 
 
 class _FakePlanner:
-    def __init__(self, artifact: PlanThenActArtifact) -> None:
+    def __init__(
+        self, artifact: PlanThenActArtifact, *, usage: dict[str, Any] | None = None,
+    ) -> None:
         self.artifact = artifact
+        self.usage = usage
 
     def invoke(self, input: dict[str, Any], config: Any = None) -> dict[str, Any]:
-        return {"plan_artifact": self.artifact}
+        out: dict[str, Any] = {"plan_artifact": self.artifact}
+        if self.usage is not None:
+            out["usage"] = self.usage
+        return out
 
 
 class _FakeExecutor:
@@ -30,12 +37,29 @@ class _FakeExecutor:
 
 
 class _FakeDrafter:
+    def __init__(self, *, usage: dict[str, Any] | None = None) -> None:
+        self.usage = usage
+
     def invoke(self, input: dict[str, Any], config: Any = None) -> dict[str, Any]:
-        return {"summary": "done"}
+        out: dict[str, Any] = {"summary": "done"}
+        if self.usage is not None:
+            out["usage"] = self.usage
+        return out
 
 
 class _DemoAgent(PlannerExecutorBase):
     """Minimal concrete subclass wired to a real (fake-Runnable) compiled graph."""
+
+    def __init__(
+        self,
+        *,
+        planner_usage: dict[str, Any] | None = None,
+        drafter_usage: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        self._planner_usage = planner_usage
+        self._drafter_usage = drafter_usage
+        super().__init__(**kwargs)
 
     @property
     def variant(self) -> str:
@@ -51,9 +75,9 @@ class _DemoAgent(PlannerExecutorBase):
             ],
         )
         return build_plan_then_act_graph(
-            planner=_FakePlanner(artifact),
+            planner=_FakePlanner(artifact, usage=self._planner_usage),
             executors={"search": _FakeExecutor("search")},
-            drafter=_FakeDrafter(),
+            drafter=_FakeDrafter(usage=self._drafter_usage),
             drafter_system="be concise",
         )
 
@@ -80,11 +104,35 @@ def test_invoke_attaches_invoke_trace() -> None:
     out = agent.invoke({"task": "research", "context": {}, "session_label": "sess-1"})
 
     trace = out[INVOKE_TRACE_KEY]
-    assert set(trace) == {"run_id", "variant", "session_label", "prompt_manifest"}
+    assert set(trace) == {
+        "run_id",
+        "variant",
+        "session_label",
+        "prompt_manifest",
+        "latency_ms",
+        "tokens_in",
+        "tokens_out",
+    }
     assert trace["variant"] == "plan_then_act"
     assert trace["session_label"] == "sess-1"
     assert trace["prompt_manifest"] == {}
     assert isinstance(trace["run_id"], str) and trace["run_id"]
+    assert isinstance(trace["latency_ms"], float) and trace["latency_ms"] >= 0
+    assert trace["tokens_in"] == 0
+    assert trace["tokens_out"] == 0
+
+
+def test_invoke_attaches_summed_token_totals_from_node_usage() -> None:
+    agent = _DemoAgent(
+        planner_usage={"input_tokens": 100, "output_tokens": 20},
+        drafter_usage={"input_tokens": 5, "output_tokens": 15},
+    )
+
+    out = agent.invoke({"task": "research", "context": {}})
+
+    trace = out[INVOKE_TRACE_KEY]
+    assert trace["tokens_in"] == 105
+    assert trace["tokens_out"] == 35
 
 
 def test_invoke_omits_session_label_when_absent_from_input() -> None:
@@ -140,3 +188,26 @@ def test_eval_harness_graph_node_ids_reflects_the_compiled_graph() -> None:
         "execute_plan",
         "draft_response",
     )
+
+
+def test_to_eval_run_result_builds_run_result_from_invoke_output() -> None:
+    agent = _DemoAgent()
+    out = agent.invoke({"task": "research", "context": {}})
+
+    result = PlannerExecutorBase.to_eval_run_result(
+        out, case_id="case-1", output={"answer": "done"},
+    )
+
+    assert result == RunResult(
+        case_id="case-1",
+        run_id=out[INVOKE_TRACE_KEY]["run_id"],
+        output={"answer": "done"},
+        metadata=out[INVOKE_TRACE_KEY],
+        executed_steps=out["executed_steps"],
+    )
+
+
+def test_to_eval_run_result_defaults_when_invoke_trace_and_executed_steps_missing() -> None:
+    result = PlannerExecutorBase.to_eval_run_result({}, case_id="case-1")
+
+    assert result == RunResult(case_id="case-1", run_id=None, output=None, metadata={})
