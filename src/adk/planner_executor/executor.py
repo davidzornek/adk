@@ -20,13 +20,12 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Mapping
-from typing import Any, Callable
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from langchain_core.runnables import Runnable
 from langchain_core.runnables.config import RunnableConfig
 from typing_extensions import override
-
 
 log = logging.getLogger(__name__)
 
