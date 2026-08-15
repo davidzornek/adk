@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from llm_utils.planner_executor.config import PlannerExecutorConfig
+from adk.planner_executor.config import PlannerExecutorConfig
 
 
 def test_tools_for_node_returns_mapped_tools() -> None:

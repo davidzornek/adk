@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from anthropic import Anthropic
 
-from llm_utils.anthropic_client import get_anthropic_client
+from adk.anthropic_client import get_anthropic_client
 
 
 def test_get_anthropic_client_raises_without_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
