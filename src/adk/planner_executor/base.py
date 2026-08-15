@@ -1,3 +1,48 @@
+"""Template for LangGraph-backed planner-executor agents.
+
+**Invoke input:** ``task`` (str), ``context`` (dict), optional ``session_label`` and
+``max_iterations``. Optional ``RunnableConfig`` forwards tags, metadata, callbacks, and
+``run_id`` into the compiled graph.
+
+**Prompts:** System prompts are plain strings/constants owned by the subclass (or the
+``Runnable``s it injects, e.g. :class:`~adk.anthropic_runnables.AnthropicRunnable`) - no
+Hub pull. An optional ``prompt_manifest`` records which prompt versions were used, surfaced
+in ``invoke_trace`` for eval/trace metadata.
+
+**Invoke output:** final graph state plus ``invoke_trace``, a dict with ``run_id`` (a fresh
+``uuid4()`` per call), ``variant``, ``session_label``, and ``prompt_manifest``.
+Use :meth:`invoke_trace_metadata` for eval-harness-compatible metadata keys.
+Use :meth:`to_eval_run_result` to build a :class:`~adk.eval_harness.cases.RunResult`
+row from invoke output.
+
+Subclasses supply :attr:`variant`, :meth:`_input_to_state`, and :meth:`_build_graph`.
+Topology-specific loops live in subclass graph builders only. Graph nodes resolve tools via
+:meth:`~PlannerExecutorConfig.tools_for_node` (not a single agent-wide allowlist).
+"""
+
+from __future__ import annotations
+
+import logging
+from abc import abstractmethod
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any
+from uuid import uuid4
+
+from langchain_core.runnables import Runnable
+from langchain_core.runnables.config import RunnableConfig
+from typing_extensions import override
+
+from .config import PlannerExecutorConfig
+
+if TYPE_CHECKING:
+    # eval_harness.cases doesn't exist until #9 lands; drop the ignore once it does.
+    from adk.eval_harness.cases import RunResult  # type: ignore[import-not-found]
+
+logger = logging.getLogger(__name__)
+
+INVOKE_TRACE_KEY = "invoke_trace"
+
+
 class PlannerExecutorBase(Runnable[dict[str, Any], dict[str, Any]]):
     """Template for LangGraph-backed planner-executor agents.
 
@@ -5,62 +50,36 @@ class PlannerExecutorBase(Runnable[dict[str, Any], dict[str, Any]]):
     ``max_iterations``. Optional ``RunnableConfig`` forwards tags, metadata, callbacks, and
     ``run_id`` into the compiled graph.
 
-    **Hub prompts:** When ``prompt_source`` and ``langsmith_client`` are both supplied, system
-    prompts are pulled once via :func:`~prompt_hub.prompts_for_config` and stamped on each invoke
-    as ``prompt_manifest`` in trace metadata.
+    **Prompts:** System prompts are plain strings/constants owned by the subclass (or the
+    ``Runnable``s it injects, e.g. :class:`~adk.anthropic_runnables.AnthropicRunnable`) - no
+    Hub pull. An optional ``prompt_manifest`` records which prompt versions were used,
+    surfaced in ``invoke_trace`` for eval/trace metadata.
 
-    **Offline construction:** Passing ``prompt_source=None`` **and** ``langsmith_client=None`` skips
-    the Hub pull entirely; ``_planner_system`` / ``_drafter_system`` become ``""`` and the manifest
-    becomes ``{}`` (or a caller-supplied ``prompt_manifest``). Intended for subclasses that fully
-    inject planner/executors (so the system prompts are unused) - e.g. deterministic skeletons or
-    hermetic tests. Supplying exactly one of the two raises ``TypeError``.
-
-    **Invoke output:** final graph state plus ``invoke_trace`` containing
-    ``langsmith_run_id``, ``langsmith_message_id`` (best-effort), and ``variant``.
+    **Invoke output:** final graph state plus ``invoke_trace``, a dict with ``run_id`` (a
+    fresh ``uuid4()`` per call), ``variant``, ``session_label``, and ``prompt_manifest``.
     Use :meth:`invoke_trace_metadata` for eval-harness-compatible metadata keys.
     Use :meth:`to_eval_run_result` to build a :class:`~adk.eval_harness.cases.RunResult`
     row from invoke output.
 
     Subclasses supply :attr:`variant`, :meth:`_input_to_state`, and :meth:`_build_graph`.
-    Topology-specific loops live in subclass graph builders only. Graph nodes resolve tools via
-    :meth:`~PlannerExecutorConfig.tools_for_node` (not a single agent-wide allowlist).
+    Topology-specific loops live in subclass graph builders only. Graph nodes resolve tools
+    via :meth:`~PlannerExecutorConfig.tools_for_node` (not a single agent-wide allowlist).
     """
 
     def __init__(
         self,
         *,
         config: PlannerExecutorConfig | None = None,
-        prompt_source: PromptSourceConfig | None = None,
-        langsmith_client: Any | None = None,
-        prompt_manifest: PromptManifest | None = None,
+        prompt_manifest: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
         self.config = config or PlannerExecutorConfig()
-        if prompt_source is None and langsmith_client is None:
-            logger.warning(
-                "Offline construction: skipping LangSmith Hub prompt pull "
-                "(prompt_source and langsmith_client are both None); planner/executors "
-                "must be fully injected and hub system prompts are empty.",
-            )
-            self._planner_system = ""
-            self._drafter_system = ""
-            self._prompt_manifest = dict(prompt_manifest) if prompt_manifest else {}
-        else:
-            if langsmith_client is None:
-                msg = "langsmith_client is required for LangSmith Hub prompt loading"
-                raise TypeError(msg)
-            if prompt_source is None:
-                msg = "prompt_source is required for LangSmith Hub prompt loading"
-                raise TypeError(msg)
-            loaded = prompts_for_config(langsmith_client, prompt_source)
-            self._planner_system = loaded.planner_system_prompt
-            self._drafter_system = loaded.drafter_system_prompt
-            self._prompt_manifest = loaded.manifest
+        self._prompt_manifest = dict(prompt_manifest) if prompt_manifest else {}
         self.graph = self._build_graph()
 
     @property
     @abstractmethod
-    def variant(self) -> PlannerExecutorVariant:
+    def variant(self) -> str:
         """Stable pattern id for callers and downstream stratification."""
 
     @abstractmethod
@@ -77,17 +96,19 @@ class PlannerExecutorBase(Runnable[dict[str, Any], dict[str, Any]]):
 
         return logical_graph_node_ids(self.graph)
 
+    def _build_invoke_trace(self, input: dict[str, Any], run_id: str) -> dict[str, Any]:
+        return {
+            "run_id": run_id,
+            "variant": self.variant,
+            "session_label": _session_label_from_input(input),
+            "prompt_manifest": self._prompt_manifest,
+        }
+
     @classmethod
     def invoke_trace_metadata(cls, out: dict[str, Any]) -> dict[str, Any]:
-        """Return LangSmith correlation fields from ``out`` for ``RunResult.metadata``."""
+        """Return the ``invoke_trace`` dict from ``out``, for ``RunResult.metadata``."""
         trace = out.get(INVOKE_TRACE_KEY)
-        if not isinstance(trace, dict):
-            return {}
-        return {
-            key: trace[key]
-            for key in _INVOKE_TRACE_METADATA_KEYS
-            if key in trace
-        }
+        return trace if isinstance(trace, dict) else {}
 
     @classmethod
     def to_eval_run_result(
@@ -101,10 +122,9 @@ class PlannerExecutorBase(Runnable[dict[str, Any], dict[str, Any]]):
         from adk.eval_harness.cases import RunResult
 
         metadata = cls.invoke_trace_metadata(out)
-        run_id = metadata.get(LANGSMITH_RUN_ID_KEY)
         return RunResult(
             case_id=case_id,
-            run_id=run_id,
+            run_id=metadata.get("run_id"),
             output=output,
             metadata=metadata,
         )
@@ -116,26 +136,13 @@ class PlannerExecutorBase(Runnable[dict[str, Any], dict[str, Any]]):
         config: RunnableConfig | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        logger.info("Starting planner-executor graph (invoke) variant=%s", self.variant.value)
+        logger.info("Starting planner-executor graph (invoke) variant=%s", self.variant)
         state = self._input_to_state(input)
-        invoke_config, collector = prepare_invoke_config(
-            self.variant,
-            input,
-            config,
-            prompt_manifest=self._prompt_manifest,
-        )
-        out = dict(self.graph.invoke(state, invoke_config, **kwargs))
-        wait_for_all_tracers()
+        run_id = str(uuid4())
+        out = dict(self.graph.invoke(state, config, **kwargs))
         logger.info("Planner-executor graph execution complete (invoke)")
-        run_id = invoke_config.get("run_id")
-        trace = build_invoke_trace(
-            collector.traced_runs,
-            variant=self.variant,
-            run_id_fallback=str(run_id) if run_id is not None else None,
-            session_label=_session_label_from_input(input),
-            prompt_manifest=self._prompt_manifest,
-        )
-        return attach_invoke_trace(out, trace)
+        out[INVOKE_TRACE_KEY] = self._build_invoke_trace(input, run_id)
+        return out
 
     @override
     def stream(
@@ -144,35 +151,26 @@ class PlannerExecutorBase(Runnable[dict[str, Any], dict[str, Any]]):
         config: RunnableConfig | None = None,
         **kwargs: Any,
     ) -> Iterator[dict[str, Any]]:
-        logger.info("Starting planner-executor graph (stream) variant=%s", self.variant.value)
+        logger.info("Starting planner-executor graph (stream) variant=%s", self.variant)
         state = self._input_to_state(input)
-        invoke_config, collector = prepare_invoke_config(
-            self.variant,
-            input,
-            config,
-            prompt_manifest=self._prompt_manifest,
-        )
+        run_id = str(uuid4())
         last: dict[str, Any] | None = None
-        for update in self.graph.stream(state, invoke_config, stream_mode="values", **kwargs):
+        for update in self.graph.stream(state, config, stream_mode="values", **kwargs):
             if last is not None:
                 yield last
             last = dict(update)
-        wait_for_all_tracers()
         logger.info("Planner-executor graph execution complete (stream)")
         if last is None:
             return
-        run_id = invoke_config.get("run_id")
-        trace = build_invoke_trace(
-            collector.traced_runs,
-            variant=self.variant,
-            run_id_fallback=str(run_id) if run_id is not None else None,
-            session_label=_session_label_from_input(input),
-            prompt_manifest=self._prompt_manifest,
-        )
-        yield attach_invoke_trace(last, trace)
+        last[INVOKE_TRACE_KEY] = self._build_invoke_trace(input, run_id)
+        yield last
 
-    def get_graph(self) -> Any:
-        """Expose the compiled graph for visualization or advanced debugging."""
+    def get_compiled_graph(self) -> Any:
+        """Expose the compiled LangGraph workflow for visualization or advanced debugging.
+
+        Named to avoid shadowing :meth:`Runnable.get_graph`, which returns an unrelated
+        LangChain-composition ``Graph`` for a different (incompatible) purpose.
+        """
         return self.graph
 
 
