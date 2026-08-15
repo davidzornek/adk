@@ -30,15 +30,15 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/llm_utils"]
+packages = ["src/adk"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 # TODO: drop once #7 (base.py) lands; harness.py is permanently unreached scaffolding, excluded for good.
 extend-exclude = [
-    "src/llm_utils/planner_executor/base.py",
-    "src/llm_utils/eval_harness/harness.py",
+    "src/adk/planner_executor/base.py",
+    "src/adk/eval_harness/harness.py",
 ]
 
 [tool.ruff.lint]
@@ -46,12 +46,12 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.mypy]
 python_version = "3.11"
-packages = ["llm_utils"]
+packages = ["adk"]
 ignore_missing_imports = true
 # TODO: drop once #7 (base.py) lands; harness.py is permanently unreached scaffolding, excluded for good.
 exclude = [
-    "^src/llm_utils/planner_executor/base\\.py$",
-    "^src/llm_utils/eval_harness/harness\\.py$",
+    "^src/adk/planner_executor/base\\.py$",
+    "^src/adk/eval_harness/harness\\.py$",
 ]
 
 [tool.pytest.ini_options]

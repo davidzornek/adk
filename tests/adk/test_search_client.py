@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from tavily import TavilyClient
 
-from llm_utils.search_client import get_search_client
+from adk.search_client import get_search_client
 
 
 def test_get_search_client_raises_without_api_key(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -18,7 +18,7 @@ class PlannerExecutorBase(Runnable[dict[str, Any], dict[str, Any]]):
     **Invoke output:** final graph state plus ``invoke_trace`` containing
     ``langsmith_run_id``, ``langsmith_message_id`` (best-effort), and ``variant``.
     Use :meth:`invoke_trace_metadata` for eval-harness-compatible metadata keys.
-    Use :meth:`to_eval_run_result` to build a :class:`~llm_utils.eval_harness.cases.RunResult`
+    Use :meth:`to_eval_run_result` to build a :class:`~adk.eval_harness.cases.RunResult`
     row from invoke output.
 
     Subclasses supply :attr:`variant`, :meth:`_input_to_state`, and :meth:`_build_graph`.
@@ -97,8 +97,8 @@ class PlannerExecutorBase(Runnable[dict[str, Any], dict[str, Any]]):
         case_id: str,
         output: str | dict[str, Any] | list[Any] | None = None,
     ) -> RunResult:
-        """Build a :class:`~llm_utils.eval_harness.cases.RunResult` from invoke output."""
-        from llm_utils.eval_harness.cases import RunResult
+        """Build a :class:`~adk.eval_harness.cases.RunResult` from invoke output."""
+        from adk.eval_harness.cases import RunResult
 
         metadata = cls.invoke_trace_metadata(out)
         run_id = metadata.get(LANGSMITH_RUN_ID_KEY)

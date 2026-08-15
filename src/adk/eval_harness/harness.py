@@ -27,10 +27,10 @@ from langsmith import run_helpers as langsmith_run_helpers
 from langsmith.schemas import Example
 from pydantic import BaseModel
 
-from llm_utils.eval_harness._score_rollups import rollup_score_blocks
-from llm_utils.eval_harness.builtins import builtin_metric_handlers
-from llm_utils.eval_harness.cases import EvalCase, RunResult
-from llm_utils.eval_harness.constants import (
+from adk.eval_harness._score_rollups import rollup_score_blocks
+from adk.eval_harness.builtins import builtin_metric_handlers
+from adk.eval_harness.cases import EvalCase, RunResult
+from adk.eval_harness.constants import (
     DEFAULT_CRITERION_SCORE_KEYS,
     DEFAULT_PHASE1_METRICS,
     METRIC_CLASSIFICATION,
@@ -39,27 +39,27 @@ from llm_utils.eval_harness.constants import (
     METRIC_OPERATIONAL,
     METRIC_STRUCTURED_OUTPUT,
 )
-from llm_utils.eval_harness.langsmith_mapping import (
+from adk.eval_harness.langsmith_mapping import (
     eval_case_from_langsmith_example,
     pair_from_langsmith_run,
     run_result_for_experiment_run,
 )
-from llm_utils.eval_harness.agent_eval.evaluators import (
+from adk.eval_harness.agent_eval.evaluators import (
     filter_evaluators_by_feedback,
     resolve_evaluators,
 )
-from llm_utils.eval_harness.agent_eval.replay import (
+from adk.eval_harness.agent_eval.replay import (
     _build_replay_target_from_pairs,
     _examples_for_replay,
     _feedback_by_run_from_pairs,
 )
-from llm_utils.eval_harness.agent_eval.types import AgentEvalRun, EvaluatorSpec
-from llm_utils.eval_harness.output_models import (
+from adk.eval_harness.agent_eval.types import AgentEvalRun, EvaluatorSpec
+from adk.eval_harness.output_models import (
     MetricScoreBlock,
     ScoreBatchOutput,
     pair_row_identifier_fields,
 )
-from llm_utils.eval_harness.reporting import rollup_run_results
+from adk.eval_harness.reporting import rollup_run_results
 
 logger = logging.getLogger(__name__)
 
