@@ -11,10 +11,12 @@ license = "MIT"
 requires-python = ">=3.11"
 authors = [{ name = "David Zornek" }]
 dependencies = [
+    "anthropic>=0.122.0",
     "langchain-core",
     "langgraph",
     "langsmith",
     "pydantic>=2",
+    "tavily-python>=0.7.27",
     "typing-extensions",
 ]
 
@@ -24,6 +26,7 @@ dev = [
     "pytest-asyncio",
     "ruff",
     "mypy",
+    "pre-commit",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -32,6 +35,11 @@ packages = ["src/llm_utils"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# TODO: drop once #7 (base.py) lands; harness.py is permanently unreached scaffolding, excluded for good.
+extend-exclude = [
+    "src/llm_utils/planner_executor/base.py",
+    "src/llm_utils/eval_harness/harness.py",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -40,6 +48,11 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.11"
 packages = ["llm_utils"]
 ignore_missing_imports = true
+# TODO: drop once #7 (base.py) lands; harness.py is permanently unreached scaffolding, excluded for good.
+exclude = [
+    "^src/llm_utils/planner_executor/base\\.py$",
+    "^src/llm_utils/eval_harness/harness\\.py$",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
