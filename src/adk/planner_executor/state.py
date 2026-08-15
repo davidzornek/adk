@@ -46,6 +46,7 @@ class PlanThenActPlannerExecutorState(TypedDict, total=False):
     authorized_steps: list[PlanThenActStep]
     executed_steps: Annotated[list[dict[str, Any]], operator.add]
     observations: Annotated[list[str], operator.add]
+    token_usage: Annotated[list[dict[str, Any]], operator.add]
     draft_output: dict[str, Any] | None
 
 

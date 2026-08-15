@@ -186,10 +186,23 @@ def test_draft_state_update_returns_llm_output_as_draft_output() -> None:
 
     out = draft_state_update(state, llm, drafter_system="be concise")
 
-    assert out == {"draft_output": {"summary": "done"}}
+    assert out == {"draft_output": {"summary": "done"}, "token_usage": []}
     assert llm.payload == {
         "drafter_system": "be concise",
         "task": "research",
         "context": {"user": "dave"},
         "observations": ["obs1"],
+    }
+
+
+def test_draft_state_update_extracts_usage_into_token_usage() -> None:
+    class _FakeLlm:
+        def invoke(self, payload: dict[str, Any], config: Any = None) -> dict[str, Any]:
+            return {"summary": "done", "usage": {"input_tokens": 12, "output_tokens": 4}}
+
+    out = draft_state_update({"task": "research"}, _FakeLlm(), drafter_system="be concise")
+
+    assert out == {
+        "draft_output": {"summary": "done"},
+        "token_usage": [{"input_tokens": 12, "output_tokens": 4}],
     }

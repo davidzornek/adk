@@ -116,5 +116,6 @@ def draft_state_update(
         "context": state.get("context") or {},
         "observations": state.get("observations") or [],
     }
-    draft_output = llm.invoke(payload, config)
-    return {"draft_output": draft_output}
+    draft_output = dict(llm.invoke(payload, config))
+    usage = draft_output.pop("usage", None)
+    return {"draft_output": draft_output, "token_usage": [usage] if usage is not None else []}

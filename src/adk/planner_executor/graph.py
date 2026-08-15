@@ -23,6 +23,12 @@ from .state import (
 logger = logging.getLogger(__name__)
 
 
+def _pop_token_usage(out: dict[str, Any]) -> list[dict[str, Any]]:
+    """Pop an ``AnthropicRunnable``-style ``usage`` dict off a node's raw output, if present."""
+    usage = out.pop("usage", None)
+    return [usage] if usage is not None else []
+
+
 def logical_graph_node_ids(compiled: Any) -> tuple[str, ...]:
     """Return logical LangGraph node ids in graph registration order (excludes ``__*`` nodes)."""
     return tuple(
@@ -229,10 +235,11 @@ def build_plan_then_act_graph(
         config: RunnableConfig,
     ) -> dict[str, Any]:
         out = dict(planner.invoke(dict(state), config))
+        token_usage = _pop_token_usage(out)
         if validator is not None:
-            return out
+            return {**out, "token_usage": token_usage}
         merged: PlanThenActPlannerExecutorState = {**state, **out}
-        return {**out, **authorize_plan_from_artifact(merged)}
+        return {**out, **authorize_plan_from_artifact(merged), "token_usage": token_usage}
 
     def execute_plan_node(
         state: PlanThenActPlannerExecutorState,
@@ -260,10 +267,15 @@ def build_plan_then_act_graph(
             config: RunnableConfig,
         ) -> dict[str, Any]:
             out = dict(validator.invoke(dict(state), config))
+            token_usage = _pop_token_usage(out)
             validated: PlanThenActArtifact | None = out.get("plan_artifact") or out.get(
                 "authorized_plan"
             )
-            return {**out, **authorize_plan_from_artifact(state, validated=validated)}
+            return {
+                **out,
+                **authorize_plan_from_artifact(state, validated=validated),
+                "token_usage": token_usage,
+            }
 
         graph.add_node("validate_plan", validate_plan_node)
     graph.add_node("execute_plan", execute_plan_node)

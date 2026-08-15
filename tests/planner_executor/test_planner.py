@@ -26,7 +26,10 @@ class _FakeAnthropicClient:
 
 def _tool_use_response(input_payload: dict[str, Any]) -> Any:
     block = types.SimpleNamespace(type="tool_use", name="output_plan", input=input_payload)
-    return types.SimpleNamespace(content=[block])
+    return types.SimpleNamespace(
+        content=[block],
+        usage=types.SimpleNamespace(input_tokens=10, output_tokens=5),
+    )
 
 
 def test_build_plan_then_act_planner_forces_output_plan_tool_use() -> None:
@@ -58,6 +61,7 @@ def test_build_plan_then_act_planner_returns_parsed_plan_artifact() -> None:
                 ),
             ],
         ),
+        "usage": {"input_tokens": 10, "output_tokens": 5},
     }
 
 
