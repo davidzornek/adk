@@ -9,15 +9,23 @@ plumbing - it composes existing pieces from ``build_plan_then_act_planner``,
 See ``examples/plan_then_act_demo.ipynb`` for a walkthrough that imports this module and
 explains each piece as it's assembled and run.
 
+Deliberately contrived, on purpose: the default task ("look up the current population of
+France and Germany, then calculate their combined population") is not chosen to show off
+planning sophistication - it's chosen because it's small and predictable enough to make the
+*plumbing* legible: real tool calls crossing two heterogeneous executors, dependency-wave
+scheduling, degraded-mode handling, and the plan-then-act topology itself, all running against
+live APIs instead of fakes. It does not demonstrate anything worth calling reasoning ability.
+Later examples, built on the same base classes, will lean into tasks that actually exercise
+planning quality; this one's job is narrower - prove the wiring holds end to end.
+
 Plan-then-act tradeoff worth calling out: ``build_plan_then_act_graph`` plans once, before any
 tool runs, so a step's ``tool_args`` are fixed by the planner's own judgment - there is no
-templating that feeds one step's tool output into a later step's arguments. The default demo
-task below ("look up the current population of France and Germany, then calculate their
-combined population") still exercises real multi-step planning: the calculate step's
-``depends_on`` forces both search steps to complete first, and the planner has to reason about
-which executor owns which tool. What it does *not* do is thread the live search numbers into
-the calculator's expression - that data-flow-between-steps capability belongs to the
-interleaved pattern, not plan-then-act. This is an intentional pattern tradeoff, not a bug.
+templating that feeds one step's tool output into a later step's arguments. The default task
+still exercises real multi-step orchestration: the calculate step's ``depends_on`` forces both
+search steps to complete first, and the planner has to route each step to the executor that
+owns its tool. What it does *not* do is thread the live search numbers into the calculator's
+expression - that data-flow-between-steps capability belongs to the interleaved pattern, not
+plan-then-act. This is an intentional pattern tradeoff, not a bug.
 
 Requires ``ANTHROPIC_API_KEY`` and ``TAVILY_API_KEY`` (see README's Setup section).
 
