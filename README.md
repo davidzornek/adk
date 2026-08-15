@@ -20,6 +20,27 @@ tests/
 See [docs/1_intro_and_contents.md](docs/1_intro_and_contents.md) for the full
 map of patterns and how they compose.
 
+## Quickstart
+
+```bash
+uv sync
+cp .env.example .env   # paste in ANTHROPIC_API_KEY + TAVILY_API_KEY — see Setup below
+uv run python -m adk.demos.plan_then_act_demo "<task>"
+```
+
+That last command runs the plan-then-act demo agent end to end against live Anthropic +
+Tavily calls and prints the authorized plan, executed steps, and final state. To score that
+same agent against a small hand-written eval set, run the eval harness demo notebook:
+
+```bash
+uv run jupyter nbconvert --to notebook --execute --output-dir /tmp \
+  docs/demos/eval_plan_then_act_demo.ipynb
+```
+
+or just open [docs/demos/eval_plan_then_act_demo.ipynb](docs/demos/eval_plan_then_act_demo.ipynb)
+directly — it's committed with output cells from a real run, so it's readable on GitHub
+without an API key.
+
 ## Demo
 
 [docs/demos/plan_then_act_demo.ipynb](docs/demos/plan_then_act_demo.ipynb) walks through
@@ -28,11 +49,7 @@ Tavily web-search tool and a sandboxed calculator tool. The demo task is intenti
 simple — the point is to prove the pattern's plumbing (real tool calls, executor routing,
 dependency-wave scheduling, degraded-mode handling) end to end against live APIs, not to
 showcase planning sophistication. Later examples will lean into tasks that actually exercise
-reasoning quality. It can also be run headlessly:
-
-```bash
-uv run python -m adk.demos.plan_then_act_demo "<task>"
-```
+reasoning quality.
 
 [docs/demos/eval_plan_then_act_demo.ipynb](docs/demos/eval_plan_then_act_demo.ipynb) scores
 that same agent with `adk.eval_harness.local_harness` — `run_and_score()` and `rollup()` — a
@@ -65,5 +82,7 @@ uv run pytest
 
 ## Status
 
-Early scaffolding. `planner_executor` and `eval_harness` reference sibling
-modules (`config`, `nodes`, `state`, `cases`, ...) that haven't landed yet.
+Only the plan-then-act topology is demoed above. `planner_executor.graph.build_planner_executor_graph`
+— the interleaved plan/execute-loop topology — and `eval_harness.harness` — a separate,
+LangSmith-`Client`-backed eval harness — are both present in `src/adk/` as importable scaffolding
+for future work, but neither is wired into the demo or the quickstart above.
