@@ -198,13 +198,18 @@ def build_plan_then_act_graph(
     *,
     planner: Runnable[dict[str, Any], dict[str, Any]],
     executors: Mapping[str, Runnable[dict[str, Any], dict[str, Any]]],
+    drafter: Runnable[dict[str, Any], dict[str, Any]],
+    drafter_system: str,
     validator: Runnable[dict[str, Any], dict[str, Any]] | None = None,
     config: PlannerExecutorConfig | None = None,
 ) -> Any:
-    """Compile plan-then-act: produce_plan -> [validate_plan] -> execute_plan -> END.
+    """Compile plan-then-act: produce_plan -> [validate_plan] -> execute_plan -> draft_response
+    -> END.
 
     ``executors`` maps executor id -> Runnable. Step routing uses ``executor_id`` on the step
     or ``config.tools_by_executor``. Parallel work runs in the coordinator at ``execute_plan``.
+    ``drafter`` synthesizes ``execute_plan``'s observations into a final ``draft_output``; it does
+    not re-author the plan artifact.
     """
     coordinator = PlanThenActExecutionCoordinator(executors, config=config)
 
@@ -224,6 +229,17 @@ def build_plan_then_act_graph(
     ) -> dict[str, Any]:
         return dict(coordinator.invoke(dict(state), config))
 
+    def draft_response_node(
+        state: PlanThenActPlannerExecutorState,
+        config: RunnableConfig,
+    ) -> dict[str, Any]:
+        return draft_state_update(
+            dict(state),
+            drafter,
+            drafter_system=drafter_system,
+            config=config,
+        )
+
     graph = StateGraph(PlanThenActPlannerExecutorState)
     graph.add_node("produce_plan", produce_plan_node)
     if validator is not None:
@@ -240,6 +256,7 @@ def build_plan_then_act_graph(
 
         graph.add_node("validate_plan", validate_plan_node)
     graph.add_node("execute_plan", execute_plan_node)
+    graph.add_node("draft_response", draft_response_node)
     graph.set_entry_point("produce_plan")
 
     if validator is not None:
@@ -248,5 +265,6 @@ def build_plan_then_act_graph(
     else:
         graph.add_edge("produce_plan", "execute_plan")
 
-    graph.add_edge("execute_plan", END)
+    graph.add_edge("execute_plan", "draft_response")
+    graph.add_edge("draft_response", END)
     return graph.compile()
