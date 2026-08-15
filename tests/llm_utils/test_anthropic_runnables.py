@@ -50,7 +50,7 @@ def test_invoke_calls_messages_create_without_tools_by_default() -> None:
 
 def test_invoke_default_parser_returns_text_and_tool_calls() -> None:
     client = _FakeAnthropicClient(
-        _response(_text_block("here's the plan"), _tool_use_block("submit_plan", {"steps": []})),
+        _response(_text_block("here's the plan"), _tool_use_block("output_plan", {"steps": []})),
     )
     runnable = AnthropicRunnable(client, model="claude-test", system_prompt="plan things")  # type: ignore[arg-type]
 
@@ -58,14 +58,14 @@ def test_invoke_default_parser_returns_text_and_tool_calls() -> None:
 
     assert result == {
         "text": "here's the plan",
-        "tool_calls": [{"name": "submit_plan", "input": {"steps": []}}],
+        "tool_calls": [{"name": "output_plan", "input": {"steps": []}}],
     }
 
 
 def test_invoke_passes_configured_tools_and_tool_choice() -> None:
-    client = _FakeAnthropicClient(_response(_tool_use_block("submit_plan", {"steps": []})))
-    tools = [{"name": "submit_plan", "description": "d", "input_schema": {"type": "object"}}]
-    tool_choice = {"type": "tool", "name": "submit_plan"}
+    client = _FakeAnthropicClient(_response(_tool_use_block("output_plan", {"steps": []})))
+    tools = [{"name": "output_plan", "description": "d", "input_schema": {"type": "object"}}]
+    tool_choice = {"type": "tool", "name": "output_plan"}
     runnable = AnthropicRunnable(
         client,  # type: ignore[arg-type]
         model="claude-test",

@@ -5,7 +5,7 @@ Any node that needs an LLM call - a planner, a drafter, an LLM-backed executor -
 optional ``tools``/``tool_choice`` for forced structured output, and an optional
 ``response_parser`` that shapes the raw ``anthropic.types.Message`` into whatever dict its
 node's state contract expects. Pattern-specific glue (e.g. the plan-then-act planner's
-``submit_plan`` tool schema and parsing into a ``PlanThenActArtifact``) lives alongside that
+``output_plan`` tool schema and parsing into a ``PlanThenActArtifact``) lives alongside that
 pattern's other code, not here - this module only knows how to call the API.
 """
 
