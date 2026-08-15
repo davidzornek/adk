@@ -1,64 +1,58 @@
-"""Anthropic-backed Runnable adapter for the plan-then-act planner.
+"""General-purpose Runnable adapter over the Anthropic Messages API.
 
-Calls the Anthropic Messages API directly via ``client.messages.create`` (no LangChain
-chat-model wrapper), forcing tool-use so the model's response always parses cleanly into a
-:class:`~llm_utils.planner_executor.state.PlanThenActArtifact`. Planner-only: the drafter role
-takes its system prompt through the invocation payload itself (see ``draft_state_update`` in
-``planner_executor/nodes.py``) rather than at construction, so it isn't served by this adapter.
+Any node that needs an LLM call - a planner, a drafter, an LLM-backed executor - can use an
+``AnthropicRunnable`` instance, each configured for its own role via ``system_prompt``,
+optional ``tools``/``tool_choice`` for forced structured output, and an optional
+``response_parser`` that shapes the raw ``anthropic.types.Message`` into whatever dict its
+node's state contract expects. Pattern-specific glue (e.g. the plan-then-act planner's
+``submit_plan`` tool schema and parsing into a ``PlanThenActArtifact``) lives alongside that
+pattern's other code, not here - this module only knows how to call the API.
 """
 
 from __future__ import annotations
 
 import json
-from typing import Any, cast
+from collections.abc import Callable
+from typing import Any
 
 from anthropic import Anthropic
-from anthropic.types import ToolChoiceToolParam, ToolParam
+from anthropic.types import ToolChoiceParam, ToolParam
 from langchain_core.runnables import Runnable
 from langchain_core.runnables.config import RunnableConfig
 from typing_extensions import override
 
-from .planner_executor.state import PlanThenActArtifact
-
-_SUBMIT_PLAN_TOOL_NAME = "submit_plan"
-
-# PlanThenActArtifact.model_json_schema() is a plain JSON Schema dict; Anthropic's ToolParam
-# TypedDict expects a narrower shape, so it's cast rather than fought structurally.
-_SUBMIT_PLAN_TOOL = cast(
-    ToolParam,
-    {
-        "name": _SUBMIT_PLAN_TOOL_NAME,
-        "description": "Submit the ordered plan of executor steps to run.",
-        "input_schema": PlanThenActArtifact.model_json_schema(),
-    },
-)
-_SUBMIT_PLAN_TOOL_CHOICE = cast(
-    ToolChoiceToolParam,
-    {"type": "tool", "name": _SUBMIT_PLAN_TOOL_NAME},
-)
+# Given the raw ``anthropic.types.Message`` response, produce the dict `invoke` returns.
+ResponseParser = Callable[[Any], dict[str, Any]]
 
 
-def _find_tool_use(response: Any, tool_name: str) -> Any:
-    for block in response.content:
-        if getattr(block, "type", None) == "tool_use" and getattr(block, "name", None) == tool_name:
-            return block
-    raise ValueError(f"Anthropic response did not include a {tool_name!r} tool_use block")
+def _default_response_parser(response: Any) -> dict[str, Any]:
+    """Normalize a response into ``{"text": ..., "tool_calls": [{"name", "input"}, ...]}``."""
+    text = "".join(
+        block.text for block in response.content if getattr(block, "type", None) == "text"
+    )
+    tool_calls = [
+        {"name": block.name, "input": block.input}
+        for block in response.content
+        if getattr(block, "type", None) == "tool_use"
+    ]
+    return {"text": text, "tool_calls": tool_calls}
 
 
 class AnthropicRunnable(Runnable[dict[str, Any], dict[str, Any]]):
-    """Plan-then-act planner Runnable backed by the Anthropic Messages API.
+    """Runnable that calls ``client.messages.create`` with a fixed model/system/tool config.
 
-    ``invoke`` sends ``input`` (the graph state, e.g. ``task``/``context``) as the user message
-    alongside a static ``system`` prompt, forcing the model to call the ``submit_plan`` tool so
-    its response schema always matches ``PlanThenActArtifact``. Returns
-    ``{"plan_artifact": PlanThenActArtifact}`` — the shape ``produce_plan_node`` (in
-    ``planner_executor/graph.py``) expects from a planner Runnable.
+    ``invoke`` serializes ``input`` as the single user message, calls the API, and hands the
+    response to ``response_parser`` (defaulting to a plain text/tool_calls dict).
 
     Attributes:
         client: Anthropic client, e.g. from ``anthropic_client.get_anthropic_client()``.
         model: Anthropic model id to call.
-        system_prompt: Static planner system prompt.
+        system_prompt: Static system prompt for this role.
+        tools: Tool definitions to offer the model, or ``None`` for no tools.
+        tool_choice: Tool-choice directive (e.g. forced tool-use), or ``None`` to let the SDK
+            default (only meaningful when ``tools`` is set).
         max_tokens: Max tokens for the ``messages.create`` call.
+        response_parser: Shapes the raw response into the dict ``invoke`` returns.
     """
 
     def __init__(
@@ -67,13 +61,19 @@ class AnthropicRunnable(Runnable[dict[str, Any], dict[str, Any]]):
         *,
         model: str,
         system_prompt: str,
+        tools: list[ToolParam] | None = None,
+        tool_choice: ToolChoiceParam | None = None,
         max_tokens: int = 2048,
+        response_parser: ResponseParser = _default_response_parser,
     ) -> None:
         super().__init__()
         self._client = client
         self._model = model
         self._system_prompt = system_prompt
+        self._tools = tools
+        self._tool_choice = tool_choice
         self._max_tokens = max_tokens
+        self._response_parser = response_parser
 
     @override
     def invoke(
@@ -82,13 +82,15 @@ class AnthropicRunnable(Runnable[dict[str, Any], dict[str, Any]]):
         config: RunnableConfig | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        response = self._client.messages.create(
-            model=self._model,
-            max_tokens=self._max_tokens,
-            system=self._system_prompt,
-            messages=[{"role": "user", "content": json.dumps(input, default=str)}],
-            tools=[_SUBMIT_PLAN_TOOL],
-            tool_choice=_SUBMIT_PLAN_TOOL_CHOICE,
-        )
-        tool_use = _find_tool_use(response, _SUBMIT_PLAN_TOOL_NAME)
-        return {"plan_artifact": PlanThenActArtifact.model_validate(tool_use.input)}
+        create_kwargs: dict[str, Any] = {
+            "model": self._model,
+            "max_tokens": self._max_tokens,
+            "system": self._system_prompt,
+            "messages": [{"role": "user", "content": json.dumps(input, default=str)}],
+        }
+        if self._tools is not None:
+            create_kwargs["tools"] = self._tools
+        if self._tool_choice is not None:
+            create_kwargs["tool_choice"] = self._tool_choice
+        response = self._client.messages.create(**create_kwargs)
+        return self._response_parser(response)
