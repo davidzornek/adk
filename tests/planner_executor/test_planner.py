@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import types
 from typing import Any
 
@@ -77,3 +78,34 @@ def test_build_plan_then_act_planner_raises_when_no_output_plan_tool_use_block()
 def test_output_plan_tool_schema_matches_artifact() -> None:
     assert _OUTPUT_PLAN_TOOL["name"] == "output_plan"
     assert _OUTPUT_PLAN_TOOL["input_schema"] == PlanThenActArtifact.model_json_schema()
+
+
+def test_planner_coerces_steps_double_encoded_as_json_string_of_full_artifact() -> None:
+    """Observed live: block.input == {"steps": '{"steps": [...]}'}."""
+    steps = [{"executor_id": "search", "tool_name": "web_search", "tool_args": {"q": "x"}}]
+    malformed = {"steps": json.dumps({"steps": steps})}
+    client = _FakeAnthropicClient(_tool_use_response(malformed))
+    planner = build_plan_then_act_planner(client, model="claude-test", system_prompt="plan it")  # type: ignore[arg-type]
+
+    result = planner.invoke({"task": "research x"})
+
+    assert result["plan_artifact"] == PlanThenActArtifact(
+        steps=[PlanThenActStep(executor_id="search", tool_name="web_search", tool_args={"q": "x"})],
+    )
+
+
+def test_planner_coerces_steps_double_encoded_as_json_string_of_bare_list() -> None:
+    steps = [{"executor_id": "calc", "tool_name": "calculate", "tool_args": {"expression": "1+1"}}]
+    malformed = {"steps": json.dumps(steps)}
+    client = _FakeAnthropicClient(_tool_use_response(malformed))
+    planner = build_plan_then_act_planner(client, model="claude-test", system_prompt="plan it")  # type: ignore[arg-type]
+
+    result = planner.invoke({"task": "add"})
+
+    assert result["plan_artifact"] == PlanThenActArtifact(
+        steps=[
+            PlanThenActStep(
+                executor_id="calc", tool_name="calculate", tool_args={"expression": "1+1"},
+            ),
+        ],
+    )

@@ -34,6 +34,12 @@ reasoning quality. It can also be run headlessly:
 uv run python -m adk.demos.plan_then_act_demo "<task>"
 ```
 
+[docs/demos/eval_plan_then_act_demo.ipynb](docs/demos/eval_plan_then_act_demo.ipynb) scores
+that same agent with `adk.eval_harness.local_harness` — `run_and_score()` and `rollup()` — a
+small, pure-local eval harness (no LangSmith) that runs a list of `EvalCase`s through the
+agent, scores each with metric functions from `eval_harness.metrics`, and rolls the results up
+into pass rate, average steps to completion, and alignment rate.
+
 ## Setup
 
 The plan-then-act demo calls Anthropic directly and uses Tavily for real web search.
