@@ -50,7 +50,8 @@ def _route_after_plan(state: InterleavedPlannerExecutorState) -> Literal["draft"
 
 
 def _route_after_execute(state: InterleavedPlannerExecutorState) -> Literal["plan", "draft"]:
-    """After a tool runs: keep planning unless we have hit the iteration safety cap, then force draft.
+    """After a tool runs: keep planning unless we have hit the iteration safety cap, then force
+    draft.
 
     Args:
         state: Current graph state; reads ``executed_steps`` length and ``max_iterations``.
@@ -139,10 +140,17 @@ def build_planner_executor_graph(
             "planner_trace": [trace_line],
         }
 
-    def execute_node(state: InterleavedPlannerExecutorState, config: RunnableConfig) -> dict[str, Any]:
+    def execute_node(
+        state: InterleavedPlannerExecutorState,
+        config: RunnableConfig,
+    ) -> dict[str, Any]:
         name = state.get("next_tool_name") or ""
         args = state.get("next_tool_args") or {}
-        logger.info("=== EXECUTE NODE START === tool=%r args=%s", name, json.dumps(args, default=str))
+        logger.info(
+            "=== EXECUTE NODE START === tool=%r args=%s",
+            name,
+            json.dumps(args, default=str),
+        )
         out = executor.invoke(dict(state), config)
         obs = out.get("observations") or []
         tail = obs[-1]
@@ -151,7 +159,10 @@ def build_planner_executor_graph(
         logger.info("=== EXECUTE NODE COMPLETE ===")
         return out
 
-    def draft_node(state: InterleavedPlannerExecutorState, config: RunnableConfig) -> dict[str, Any]:
+    def draft_node(
+        state: InterleavedPlannerExecutorState,
+        config: RunnableConfig,
+    ) -> dict[str, Any]:
         mode = f"llm model={draft_model!r} temp={draft_temperature}"
         logger.info("=== DRAFT NODE START (%s) ===", mode)
         result = draft_planner_executor(
