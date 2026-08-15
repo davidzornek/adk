@@ -93,4 +93,9 @@ class AnthropicRunnable(Runnable[dict[str, Any], dict[str, Any]]):
         if self._tool_choice is not None:
             create_kwargs["tool_choice"] = self._tool_choice
         response = self._client.messages.create(**create_kwargs)
-        return self._response_parser(response)
+        parsed = self._response_parser(response)
+        parsed["usage"] = {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+        }
+        return parsed

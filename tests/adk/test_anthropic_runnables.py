@@ -21,8 +21,11 @@ class _FakeAnthropicClient:
         self.messages = _FakeMessages(response)
 
 
-def _response(*blocks: Any) -> Any:
-    return types.SimpleNamespace(content=list(blocks))
+def _response(*blocks: Any, input_tokens: int = 10, output_tokens: int = 5) -> Any:
+    return types.SimpleNamespace(
+        content=list(blocks),
+        usage=types.SimpleNamespace(input_tokens=input_tokens, output_tokens=output_tokens),
+    )
 
 
 def _text_block(text: str) -> Any:
@@ -59,6 +62,7 @@ def test_invoke_default_parser_returns_text_and_tool_calls() -> None:
     assert result == {
         "text": "here's the plan",
         "tool_calls": [{"name": "output_plan", "input": {"steps": []}}],
+        "usage": {"input_tokens": 10, "output_tokens": 5},
     }
 
 
@@ -92,4 +96,4 @@ def test_invoke_uses_custom_response_parser() -> None:
 
     result = runnable.invoke({"task": "greet"})
 
-    assert result == {"custom": True}
+    assert result == {"custom": True, "usage": {"input_tokens": 10, "output_tokens": 5}}
