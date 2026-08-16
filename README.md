@@ -46,36 +46,35 @@ without an API key.
 
 ## Demo
 
-[docs/demos/plan_then_act_demo.ipynb](docs/demos/plan_then_act_demo.ipynb) walks through
-`adk.demos.plan_then_act_demo.DemoPlanThenActAgent`, a plan-then-act agent wired to a live
-Tavily web-search tool and a sandboxed calculator tool. The demo task is intentionally
-simple — the point is to prove the pattern's plumbing (real tool calls, executor routing,
-dependency-wave scheduling, degraded-mode handling) end to end against live APIs, not to
-showcase planning sophistication. Later examples will lean into tasks that actually exercise
-reasoning quality.
+Built `DemoPlanThenActAgent` (`adk.demos.plan_then_act_demo`) — a plan-then-act agent wired to
+a live Tavily web-search tool and a sandboxed calculator tool — to prove the pattern's plumbing
+end to end against live APIs: real tool calls, executor routing, dependency-wave scheduling,
+degraded-mode handling. The demo task is intentionally simple (population lookups + arithmetic)
+so the plumbing stays legible; it's not meant to showcase planning sophistication. Walkthrough:
+[docs/demos/plan_then_act_demo.ipynb](docs/demos/plan_then_act_demo.ipynb).
 
-[docs/demos/eval_plan_then_act_demo.ipynb](docs/demos/eval_plan_then_act_demo.ipynb) scores
-that same agent with `adk.eval_harness.local_harness` — `run_and_score()` and `rollup()` — a
-small, pure-local eval harness (no LangSmith) that runs a list of `EvalCase`s through the
-agent, scores each with metric functions from `eval_harness.metrics`, and rolls the results up
-into pass rate, average steps to completion, and alignment rate. It also scores a second,
-larger set of eval cases synthesized by
-[docs/demos/generate_eval_cases_demo.ipynb](docs/demos/generate_eval_cases_demo.ipynb), which
-drives `adk.demos.generate_eval_cases_demo.EvalCaseGenerator` — a
-`GenerateEvaluateReflectBase` (`adk.generate_evaluate_reflect`) subclass — to generate and
-self-critique new cases in the hand-written set's three tool-routing categories, writing
-accepted ones to
-[docs/demos/data/generated_eval_cases.json](docs/demos/data/generated_eval_cases.json).
+Scored that agent against a small hand-written eval set (3 cases spanning its three tool-routing
+categories) with `adk.eval_harness.local_harness`, a pure-local harness (no LangSmith) built for
+this: **100% pass rate, 100% plan-execution alignment**. To check that result wasn't just an
+artifact of hand-picking easy cases, also built `EvalCaseGenerator`
+(`adk.demos.generate_eval_cases_demo`) — a `GenerateEvaluateReflectBase` subclass that generates
+and self-critiques new cases in the same three categories — and scored its 6 accepted cases the
+same way: same **100%/100%**. Walkthroughs:
+[docs/demos/eval_plan_then_act_demo.ipynb](docs/demos/eval_plan_then_act_demo.ipynb),
+[docs/demos/generate_eval_cases_demo.ipynb](docs/demos/generate_eval_cases_demo.ipynb).
 
 ## Experiments
 
-[docs/experiments/web_search_ablation.ipynb](docs/experiments/web_search_ablation.ipynb) runs the
-hand-written eval cases from `eval_plan_then_act_demo.ipynb` through `DemoPlanThenActAgent` twice
-— once as-is, once with `web_search` swapped for a tool that always fails — and diffs the
-rollups. It's a small case study in the harness's `task_success` / `plan_execution_alignment`
-split: a tool outage should tank `task_success` on search-dependent cases while leaving
-`plan_execution_alignment` untouched, since the planner's routing logic never sees the ablation,
-only `DegradedModeExecutor`'s fault boundary does.
+Tested whether that eval harness actually distinguishes *"the plan was right but a tool failed"*
+from *"the plan was wrong"*, by disabling `web_search` (planner prompt, config, and the
+`calculate` tool all left untouched) and rerunning the same three hand-written cases. Result:
+**pass rate dropped from 100% to 33%** — exactly the two search-dependent cases degraded —
+while **alignment rate held at 100%**, since the planner kept routing every step to the right
+executor and tool even though the tool call itself failed; only `DegradedModeExecutor`'s fault
+boundary saw the outage. That's the harness's `task_success` / `plan_execution_alignment` split
+doing its job: a single pass/fail number can't tell those two failure modes apart, and this
+result shows the two metrics together do. Notebook (run and committed with output):
+[docs/experiments/web_search_ablation.ipynb](docs/experiments/web_search_ablation.ipynb).
 
 ## Setup
 
