@@ -1,0 +1,90 @@
+[
+  {
+    "id": "generated_search_only_1",
+    "task": "What is the current market capitalization of Tesla Inc.?",
+    "context": {},
+    "expected_output": null,
+    "expected_steps": [
+      {
+        "executor_id": "search",
+        "tool_name": "web_search"
+      }
+    ]
+  },
+  {
+    "id": "generated_search_only_2",
+    "task": "What is the current price per barrel of Brent crude oil?",
+    "context": {},
+    "expected_output": null,
+    "expected_steps": [
+      {
+        "executor_id": "search",
+        "tool_name": "web_search"
+      }
+    ]
+  },
+  {
+    "id": "generated_calc_only_1",
+    "task": "What is 356 divided by 8?",
+    "context": {},
+    "expected_output": null,
+    "expected_steps": [
+      {
+        "executor_id": "calc",
+        "tool_name": "calculate"
+      }
+    ]
+  },
+  {
+    "id": "generated_calc_only_2",
+    "task": "What is 923 minus 356?",
+    "context": {},
+    "expected_output": null,
+    "expected_steps": [
+      {
+        "executor_id": "calc",
+        "tool_name": "calculate"
+      }
+    ]
+  },
+  {
+    "id": "generated_combined_1",
+    "task": "Look up the current number of registered electric vehicles in Norway and in the Netherlands, then calculate the combined total.",
+    "context": {},
+    "expected_output": null,
+    "expected_steps": [
+      {
+        "executor_id": "search",
+        "tool_name": "web_search"
+      },
+      {
+        "executor_id": "search",
+        "tool_name": "web_search"
+      },
+      {
+        "executor_id": "calc",
+        "tool_name": "calculate"
+      }
+    ]
+  },
+  {
+    "id": "generated_combined_2",
+    "task": "Look up the current annual coffee production (in metric tons) of Brazil and Vietnam, then calculate their combined production.",
+    "context": {},
+    "expected_output": null,
+    "expected_steps": [
+      {
+        "executor_id": "search",
+        "tool_name": "web_search"
+      },
+      {
+        "executor_id": "search",
+        "tool_name": "web_search"
+      },
+      {
+        "executor_id": "calc",
+        "tool_name": "calculate"
+      }
+    ]
+  }
+]

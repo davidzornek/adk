@@ -55,7 +55,12 @@ reasoning quality.
 that same agent with `adk.eval_harness.local_harness` — `run_and_score()` and `rollup()` — a
 small, pure-local eval harness (no LangSmith) that runs a list of `EvalCase`s through the
 agent, scores each with metric functions from `eval_harness.metrics`, and rolls the results up
-into pass rate, average steps to completion, and alignment rate.
+into pass rate, average steps to completion, and alignment rate. It also scores a second,
+larger set of eval cases synthesized by `adk.demos.generate_eval_cases_demo`
+(`uv run python -m adk.demos.generate_eval_cases_demo`), which drives the generate-evaluate-
+reflect closed-loop graph (`adk.generate_evaluate_reflect`) to generate and self-critique new
+cases in the hand-written set's three tool-routing categories, writing accepted ones to
+[docs/demos/data/generated_eval_cases.json](docs/demos/data/generated_eval_cases.json).
 
 ## Setup
 
@@ -82,7 +87,9 @@ uv run pytest
 
 ## Status
 
-Only the plan-then-act topology is demoed above. `planner_executor.graph.build_planner_executor_graph`
-— the interleaved plan/execute-loop topology — and `eval_harness.harness` — a separate,
-LangSmith-`Client`-backed eval harness — are both present in `src/adk/` as importable scaffolding
-for future work, but neither is wired into the demo or the quickstart above.
+Only the plan-then-act topology is demoed above, now paired with a generate-evaluate-reflect
+loop (`adk.generate_evaluate_reflect`) that synthesizes additional eval cases for it (see Demo
+section). `planner_executor.graph.build_planner_executor_graph` — the interleaved plan/execute-
+loop topology — and `eval_harness.harness` — a separate, LangSmith-`Client`-backed eval harness
+— are both present in `src/adk/` as importable scaffolding for future work, but neither is wired
+into the demo or the quickstart above.
