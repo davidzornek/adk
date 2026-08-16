@@ -8,12 +8,13 @@ LangSmith datasets.
 
 ```
 src/adk/
-├── planner_executor/   # LangGraph-backed planner-executor agent base classes
-├── eval_harness/       # LangSmith-backed evaluation harness (scoring, rollups)
-└── demos/              # Runnable demo agents built on the framework above
-docs/                   # Design docs: pattern cheatsheets, evaluation, composability guide
-└── demos/              # Notebooks walking through the demos in src/adk/demos/, run and
-                         # committed with their output cells so they're readable on GitHub
+├── planner_executor/          # LangGraph-backed planner-executor agent base classes
+├── generate_evaluate_reflect/ # LangGraph-backed generate-evaluate-reflect agent base classes
+├── eval_harness/              # LangSmith-backed evaluation harness (scoring, rollups)
+└── demos/                     # Runnable demo agents built on the framework above
+docs/                          # Design docs: pattern cheatsheets, evaluation, composability guide
+└── demos/                     # Notebooks walking through the demos in src/adk/demos/, run and
+                                # committed with their output cells so they're readable on GitHub
 tests/
 ```
 
@@ -56,10 +57,12 @@ that same agent with `adk.eval_harness.local_harness` — `run_and_score()` and 
 small, pure-local eval harness (no LangSmith) that runs a list of `EvalCase`s through the
 agent, scores each with metric functions from `eval_harness.metrics`, and rolls the results up
 into pass rate, average steps to completion, and alignment rate. It also scores a second,
-larger set of eval cases synthesized by `adk.demos.generate_eval_cases_demo`
-(`uv run python -m adk.demos.generate_eval_cases_demo`), which drives the generate-evaluate-
-reflect closed-loop graph (`adk.generate_evaluate_reflect`) to generate and self-critique new
-cases in the hand-written set's three tool-routing categories, writing accepted ones to
+larger set of eval cases synthesized by
+[docs/demos/generate_eval_cases_demo.ipynb](docs/demos/generate_eval_cases_demo.ipynb), which
+drives `adk.demos.generate_eval_cases_demo.EvalCaseGenerator` — a
+`GenerateEvaluateReflectBase` (`adk.generate_evaluate_reflect`) subclass — to generate and
+self-critique new cases in the hand-written set's three tool-routing categories, writing
+accepted ones to
 [docs/demos/data/generated_eval_cases.json](docs/demos/data/generated_eval_cases.json).
 
 ## Setup

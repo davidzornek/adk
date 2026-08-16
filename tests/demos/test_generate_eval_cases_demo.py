@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from adk.demos.generate_eval_cases_demo import _RationaleReflector, generate_eval_cases
+from adk.demos.generate_eval_cases_demo import EvalCaseGenerator, _RationaleReflector
 from adk.eval_harness.cases import EvalCase, ExpectedStep
 
 _SEEDS = [
@@ -49,18 +49,36 @@ class _FakeEvaluator:
         return {"eval_verdict": verdict, "eval_rationale": f"{seed_id} attempt {index + 1}"}
 
 
-def test_generates_examples_per_seed_cases_when_all_pass() -> None:
-    generator = _FakeGenerator()
-    evaluator = _FakeEvaluator({"search_only": ["pass"] * 2, "calc_only": ["pass"] * 2})
+class _TestEvalCaseGenerator(EvalCaseGenerator):
+    """Test double: same ``_input_to_state``/``generate_eval_cases`` logic, fake LLM roles.
 
-    cases = generate_eval_cases(
-        generator=generator,
-        evaluator=evaluator,
-        reflector=_RationaleReflector(),
-        seeds=_SEEDS,
-        examples_per_seed=2,
-        max_attempts=3,
+    Bypasses ``EvalCaseGenerator.__init__`` (which would build a real Anthropic client) by
+    calling the base class's ``__init__`` directly - ``_build_generator``/``_build_evaluator``
+    are overridden below, so ``self._client``/``self._model`` are never touched.
+    """
+
+    def __init__(self, *, generator: _FakeGenerator, evaluator: _FakeEvaluator) -> None:
+        self._generator = generator
+        self._evaluator = evaluator
+        super(EvalCaseGenerator, self).__init__()  # type: ignore[misc]
+
+    def _build_generator(self) -> _FakeGenerator:  # type: ignore[override]
+        return self._generator
+
+    def _build_evaluator(self) -> _FakeEvaluator:  # type: ignore[override]
+        return self._evaluator
+
+    def _build_reflector(self) -> _RationaleReflector:  # type: ignore[override]
+        return _RationaleReflector()
+
+
+def test_generates_examples_per_seed_cases_when_all_pass() -> None:
+    agent = _TestEvalCaseGenerator(
+        generator=_FakeGenerator(),
+        evaluator=_FakeEvaluator({"search_only": ["pass"] * 2, "calc_only": ["pass"] * 2}),
     )
+
+    cases = agent.generate_eval_cases(seeds=_SEEDS, examples_per_seed=2)
 
     assert [case.id for case in cases] == [
         "generated_search_only_1",
@@ -73,17 +91,12 @@ def test_generates_examples_per_seed_cases_when_all_pass() -> None:
 
 
 def test_skips_seed_that_exhausts_attempt_budget_without_a_pass() -> None:
-    generator = _FakeGenerator()
-    evaluator = _FakeEvaluator({"search_only": ["fail", "fail"], "calc_only": ["pass"]})
-
-    cases = generate_eval_cases(
-        generator=generator,
-        evaluator=evaluator,
-        reflector=_RationaleReflector(),
-        seeds=_SEEDS,
-        examples_per_seed=1,
-        max_attempts=2,
+    agent = _TestEvalCaseGenerator(
+        generator=_FakeGenerator(),
+        evaluator=_FakeEvaluator({"search_only": ["fail", "fail", "fail"], "calc_only": ["pass"]}),
     )
+
+    cases = agent.generate_eval_cases(seeds=_SEEDS, examples_per_seed=1)
 
     assert [case.id for case in cases] == ["generated_calc_only_1"]
 

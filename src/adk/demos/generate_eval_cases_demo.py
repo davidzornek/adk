@@ -1,22 +1,25 @@
-"""Generate synthetic eval cases for the plan-then-act demo via the GER closed-loop graph.
+"""Synthetic eval-case generation: a concrete ``GenerateEvaluateReflectBase`` agent.
 
-Wires ``adk.generate_evaluate_reflect``'s ``build_ger_closed_loop_graph`` (#12) around two
-Anthropic-backed roles - a generator that proposes a new candidate task for the plan-then-act
-demo agent (``adk.demos.plan_then_act_demo``, two tools: ``web_search`` and ``calculate``), and
-an evaluator that critiques each candidate against a fixed rubric (realistic, unambiguous,
-genuinely requires exactly the tool(s) it claims) via forced tool-use. No third LLM role for
-reflection: the evaluator's own rejection rationale already says what's wrong with a candidate,
-so it's reused directly as ``reflection_feedback`` (see ``_RationaleReflector``).
+``EvalCaseGenerator`` wires ``adk.generate_evaluate_reflect.base.GenerateEvaluateReflectBase``
+around two Anthropic-backed roles - a generator that proposes a new candidate task for the
+plan-then-act demo agent (``adk.demos.plan_then_act_demo``, two tools: ``web_search`` and
+``calculate``), and an evaluator that critiques each candidate against a fixed rubric
+(realistic, unambiguous, genuinely requires exactly the tool(s) it claims) via forced
+tool-use. No third LLM role for reflection: the evaluator's own rejection rationale already
+says what's wrong with a candidate, so it's reused directly as ``reflection_feedback`` (see
+``_RationaleReflector``).
 
-Deliberately not configurable: task, seeds, and counts are fixed constants rather than CLI
-flags, matching this demo's minimal scope. Each of three seed cases (mirroring the hand-written
-cases in ``docs/demos/eval_plan_then_act_demo.ipynb``) drives ``EXAMPLES_PER_SEED`` independent
-GER runs, producing up to ``3 * EXAMPLES_PER_SEED`` accepted cases; a seed run that exhausts its
-attempt budget without a pass is skipped rather than failing the whole script.
+``EvalCaseGenerator.generate_eval_cases()`` is the specific synthetic-data-generation use
+case built on top of the generic base class: it drives ``EXAMPLES_PER_SEED`` independent GER
+runs per seed case (mirroring the hand-written cases in
+``docs/demos/eval_plan_then_act_demo.ipynb``), producing up to ``3 * EXAMPLES_PER_SEED``
+accepted cases. Seeds and counts are fixed constants rather than configurable inputs, matching
+this demo's minimal scope. A seed run that exhausts its attempt budget without a pass is
+skipped rather than failing the whole batch.
 
-Usage::
-
-    uv run python -m adk.demos.generate_eval_cases_demo
+See ``docs/demos/generate_eval_cases_demo.ipynb`` for a walkthrough that imports this module,
+runs it against the live Anthropic API, and writes the result to
+``docs/demos/data/generated_eval_cases.json``.
 """
 
 from __future__ import annotations
@@ -27,7 +30,6 @@ from typing import Any, Literal, cast
 
 from anthropic import Anthropic
 from anthropic.types import ToolChoiceToolParam, ToolParam
-from dotenv import load_dotenv
 from langchain_core.runnables import Runnable
 from langchain_core.runnables.config import RunnableConfig
 from pydantic import BaseModel
@@ -35,13 +37,18 @@ from typing_extensions import override
 
 from ..anthropic_client import get_anthropic_client
 from ..anthropic_runnables import AnthropicRunnable
-from ..eval_harness.cases import EvalCase, ExpectedStep, dump_eval_cases
-from ..generate_evaluate_reflect.graph import build_ger_closed_loop_graph
+from ..eval_harness.cases import EvalCase, ExpectedStep
+from ..generate_evaluate_reflect.base import GenerateEvaluateReflectBase
+from ..generate_evaluate_reflect.config import GenerateEvaluateReflectConfig
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "claude-sonnet-5"
-DEFAULT_OUTPUT_PATH = Path("docs/demos/data/generated_eval_cases.json")
+
+# Resolved from this file's location (not cwd) since the notebook that calls dump_eval_cases
+# with this path runs with its own directory as cwd, not the repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_OUTPUT_PATH = _REPO_ROOT / "docs" / "demos" / "data" / "generated_eval_cases.json"
 
 EXAMPLES_PER_SEED = 2
 MAX_ATTEMPTS = 3
@@ -246,79 +253,81 @@ class _RationaleReflector(Runnable[dict[str, Any], dict[str, Any]]):
         return {"reflection_feedback": input.get("eval_rationale")}
 
 
-def generate_eval_cases(
-    *,
-    generator: Runnable[dict[str, Any], dict[str, Any]],
-    evaluator: Runnable[dict[str, Any], dict[str, Any]],
-    reflector: Runnable[dict[str, Any], dict[str, Any]],
-    seeds: list[EvalCase] = SEED_CASES,
-    examples_per_seed: int = EXAMPLES_PER_SEED,
-    max_attempts: int = MAX_ATTEMPTS,
-) -> list[EvalCase]:
-    """Run the GER closed loop ``examples_per_seed`` times per seed, collecting accepted cases.
+class EvalCaseGenerator(GenerateEvaluateReflectBase):
+    """Concrete GER agent: synthesizes eval cases for ``DemoPlanThenActAgent``."""
 
-    A seed run that exhausts ``max_attempts`` without an accepted candidate is logged and
-    skipped, so one stubborn seed can't fail the whole batch.
-    """
-    graph = build_ger_closed_loop_graph(
-        generator=generator,
-        evaluator=evaluator,
-        reflector=reflector,
-    )
-    cases: list[EvalCase] = []
-    for seed in seeds:
-        already_generated: list[str] = []
-        for attempt in range(1, examples_per_seed + 1):
-            out = graph.invoke(
-                {
-                    "task": f"Generate a new eval case in the {seed.id!r} category.",
-                    "context": {
-                        "seed": seed.model_dump(),
-                        "already_generated": list(already_generated),
+    def __init__(
+        self,
+        *,
+        client: Anthropic | None = None,
+        model: str = DEFAULT_MODEL,
+        config: GenerateEvaluateReflectConfig | None = None,
+    ) -> None:
+        self._client = client or get_anthropic_client()
+        self._model = model
+        super().__init__(config=config or GenerateEvaluateReflectConfig(max_attempts=MAX_ATTEMPTS))
+
+    @property
+    def variant(self) -> str:
+        return "generate_eval_cases_demo"
+
+    def _build_generator(self) -> Runnable[dict[str, Any], dict[str, Any]]:
+        return build_eval_case_generator(self._client, model=self._model)
+
+    def _build_evaluator(self) -> Runnable[dict[str, Any], dict[str, Any]]:
+        return build_eval_case_evaluator(self._client, model=self._model)
+
+    def _build_reflector(self) -> Runnable[dict[str, Any], dict[str, Any]]:
+        return _RationaleReflector()
+
+    def _input_to_state(self, input: dict[str, Any]) -> dict[str, Any]:
+        return {"task": input["task"], "context": input.get("context", {})}
+
+    def generate_eval_cases(
+        self,
+        *,
+        seeds: list[EvalCase] = SEED_CASES,
+        examples_per_seed: int = EXAMPLES_PER_SEED,
+    ) -> list[EvalCase]:
+        """Run the GER loop ``examples_per_seed`` times per seed, collecting accepted cases.
+
+        Already-accepted tasks for a seed are passed back in as ``context.already_generated``
+        so later runs for that same seed don't just repeat it. A seed run that exhausts its
+        attempt budget without an accepted candidate is logged and skipped, so one stubborn
+        seed can't fail the whole batch.
+        """
+        cases: list[EvalCase] = []
+        for seed in seeds:
+            already_generated: list[str] = []
+            for attempt in range(1, examples_per_seed + 1):
+                out = self.invoke(
+                    {
+                        "task": f"Generate a new eval case in the {seed.id!r} category.",
+                        "context": {
+                            "seed": seed.model_dump(),
+                            "already_generated": list(already_generated),
+                        },
                     },
-                    "max_attempts": max_attempts,
-                },
-            )
-            accepted = out.get("accepted_artifact")
-            if accepted is None:
-                logger.warning(
-                    "seed %r run %s/%s exhausted %s attempts without a pass",
-                    seed.id,
-                    attempt,
-                    examples_per_seed,
-                    max_attempts,
                 )
-                continue
-            already_generated.append(accepted["task"])
-            cases.append(
-                EvalCase(
-                    id=f"generated_{seed.id}_{attempt}",
-                    task=accepted["task"],
-                    expected_steps=[
-                        ExpectedStep.model_validate(step)
-                        for step in accepted.get("expected_steps", [])
-                    ],
-                ),
-            )
-    return cases
-
-
-def main() -> None:
-    load_dotenv()
-    logging.basicConfig(level=logging.INFO)
-
-    client = get_anthropic_client()
-    cases = generate_eval_cases(
-        generator=build_eval_case_generator(client),
-        evaluator=build_eval_case_evaluator(client),
-        reflector=_RationaleReflector(),
-    )
-
-    dump_eval_cases(cases, DEFAULT_OUTPUT_PATH)
-    print(f"Wrote {len(cases)} generated eval case(s) to {DEFAULT_OUTPUT_PATH}")
-    for case in cases:
-        print(f"  - {case.id}: {case.task}")
-
-
-if __name__ == "__main__":
-    main()
+                accepted = out.get("accepted_artifact")
+                if accepted is None:
+                    logger.warning(
+                        "seed %r run %s/%s exhausted %s attempts without a pass",
+                        seed.id,
+                        attempt,
+                        examples_per_seed,
+                        self.config.max_attempts,
+                    )
+                    continue
+                already_generated.append(accepted["task"])
+                cases.append(
+                    EvalCase(
+                        id=f"generated_{seed.id}_{attempt}",
+                        task=accepted["task"],
+                        expected_steps=[
+                            ExpectedStep.model_validate(step)
+                            for step in accepted.get("expected_steps", [])
+                        ],
+                    ),
+                )
+        return cases

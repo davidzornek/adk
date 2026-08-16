@@ -1,7 +1,7 @@
 [
   {
     "id": "generated_search_only_1",
-    "task": "What is the current market capitalization of Tesla Inc.?",
+    "task": "What is the current market capitalization of NVIDIA?",
     "context": {},
     "expected_output": null,
     "expected_steps": [
@@ -13,7 +13,7 @@
   },
   {
     "id": "generated_search_only_2",
-    "task": "What is the current price per barrel of Brent crude oil?",
+    "task": "What is the current world record time for the men's 100 meter sprint?",
     "context": {},
     "expected_output": null,
     "expected_steps": [
@@ -37,7 +37,7 @@
   },
   {
     "id": "generated_calc_only_2",
-    "task": "What is 923 minus 356?",
+    "task": "What is 219 plus 764?",
     "context": {},
     "expected_output": null,
     "expected_steps": [
@@ -49,7 +49,7 @@
   },
   {
     "id": "generated_combined_1",
-    "task": "Look up the current number of registered electric vehicles in Norway and in the Netherlands, then calculate the combined total.",
+    "task": "Look up the current market capitalization of Nvidia and the current market capitalization of Tesla, then calculate the difference between the two.",
     "context": {},
     "expected_output": null,
     "expected_steps": [
@@ -69,7 +69,7 @@
   },
   {
     "id": "generated_combined_2",
-    "task": "Look up the current annual coffee production (in metric tons) of Brazil and Vietnam, then calculate their combined production.",
+    "task": "Look up the current number of registered vehicles in Japan and in South Korea, then calculate the combined total.",
     "context": {},
     "expected_output": null,
     "expected_steps": [
