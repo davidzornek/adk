@@ -62,6 +62,16 @@ same way: same **100%/100%**. Walkthroughs:
 [docs/demos/eval_plan_then_act_demo.ipynb](docs/demos/eval_plan_then_act_demo.ipynb),
 [docs/demos/generate_eval_cases_demo.ipynb](docs/demos/generate_eval_cases_demo.ipynb).
 
+Built a second, guarded GER agent — `RecipeShoppingListAgent`
+(`adk.demos.recipe_shopping_list_demo`) — that researches 3-5 existing recipes for a named dish
+via live Tavily search, synthesizes a new recipe by comparing and contrasting them, and builds
+a shopping list for it. It refuses any request that isn't "a recipe for one named dish" before
+the GER loop ever runs, and its evaluator is a plain deterministic set comparison (shopping
+list covers every recipe ingredient exactly once, nothing extra) rather than another LLM
+judge — proof that `evaluate` in this pattern can be any `Runnable`, not necessarily a model
+call. Walkthrough:
+[docs/demos/recipe_shopping_list_demo.ipynb](docs/demos/recipe_shopping_list_demo.ipynb).
+
 ## Experiments
 
 Tested whether that eval harness actually distinguishes *"the plan was right but a tool failed"*
@@ -100,9 +110,11 @@ uv run pytest
 
 ## Status
 
-Only the plan-then-act topology is demoed above, now paired with a generate-evaluate-reflect
-loop (`adk.generate_evaluate_reflect`) that synthesizes additional eval cases for it (see Demo
-section). `planner_executor.graph.build_planner_executor_graph` — the interleaved plan/execute-
-loop topology — and `eval_harness.harness` — a separate eval harness backed by an external
+The plan-then-act topology is demoed above, paired with a generate-evaluate-reflect loop
+(`adk.generate_evaluate_reflect`) that synthesizes additional eval cases for it, plus a second,
+independent GER agent (the recipe + shopping list demo) showing the same base class with a
+guardrail and a non-LLM evaluator (see Demo section).
+`planner_executor.graph.build_planner_executor_graph` — the interleaved plan/execute-loop
+topology — and `eval_harness.harness` — a separate eval harness backed by an external
 tracing/dataset service — are both present in `src/adk/` as importable scaffolding for future
 work, but neither is wired into the demo or the quickstart above.
