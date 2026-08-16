@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Mapping
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from langchain_core.runnables import Runnable
 from langchain_core.runnables.config import RunnableConfig
@@ -106,7 +106,7 @@ def build_planner_executor_graph(
     drafter_system: str,
     draft_model: str = "llama3-3-70b",
     draft_temperature: float = 0.4,
-) -> StateGraph:
+) -> Any:
     """Assemble and compile the graph: plan <-> execute loops until draft or stop.
 
     In product terms: this is the "orchestration diagram" - which step comes next given what the
@@ -172,7 +172,7 @@ def build_planner_executor_graph(
         mode = f"llm model={draft_model!r} temp={draft_temperature}"
         logger.info("=== DRAFT NODE START (%s) ===", mode)
         result = draft_planner_executor(
-            dict(state),
+            state,
             draft_llm,
             drafter_system=drafter_system,
             config=config,
@@ -184,7 +184,9 @@ def build_planner_executor_graph(
         )
         return result
 
-    def stop_node(_state: InterleavedPlannerExecutorState) -> dict[str, Any]:
+    # Unused, but the param must be named `state` (not `_state`): langgraph's single-arg
+    # _Node protocol isn't positional-only, so mypy matches implementing callables by name.
+    def stop_node(state: InterleavedPlannerExecutorState) -> dict[str, Any]:
         logger.info("=== STOP NODE (planner requested end) ===")
         return {"stopped_reason": "planner_stop"}
 
@@ -238,7 +240,7 @@ def build_plan_then_act_graph(
         token_usage = _pop_token_usage(out)
         if validator is not None:
             return {**out, "token_usage": token_usage}
-        merged: PlanThenActPlannerExecutorState = {**state, **out}
+        merged = cast(PlanThenActPlannerExecutorState, {**state, **out})
         return {**out, **authorize_plan_from_artifact(merged), "token_usage": token_usage}
 
     def execute_plan_node(
