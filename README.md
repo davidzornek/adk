@@ -13,8 +13,10 @@ src/adk/
 ├── eval_harness/              # LangSmith-backed evaluation harness (scoring, rollups)
 └── demos/                     # Runnable demo agents built on the framework above
 docs/                          # Design docs: pattern cheatsheets, evaluation, composability guide
-└── demos/                     # Notebooks walking through the demos in src/adk/demos/, run and
-                                # committed with their output cells so they're readable on GitHub
+├── demos/                     # Notebooks walking through the demos in src/adk/demos/, run and
+│                               # committed with their output cells so they're readable on GitHub
+└── experiments/               # Notebooks answering a specific evaluation question via the demos
+                                # above, e.g. an ablation — also run and committed with output
 tests/
 ```
 
@@ -64,6 +66,16 @@ drives `adk.demos.generate_eval_cases_demo.EvalCaseGenerator` — a
 self-critique new cases in the hand-written set's three tool-routing categories, writing
 accepted ones to
 [docs/demos/data/generated_eval_cases.json](docs/demos/data/generated_eval_cases.json).
+
+## Experiments
+
+[docs/experiments/web_search_ablation.ipynb](docs/experiments/web_search_ablation.ipynb) runs the
+hand-written eval cases from `eval_plan_then_act_demo.ipynb` through `DemoPlanThenActAgent` twice
+— once as-is, once with `web_search` swapped for a tool that always fails — and diffs the
+rollups. It's a small case study in the harness's `task_success` / `plan_execution_alignment`
+split: a tool outage should tank `task_success` on search-dependent cases while leaving
+`plan_execution_alignment` untouched, since the planner's routing logic never sees the ablation,
+only `DegradedModeExecutor`'s fault boundary does.
 
 ## Setup
 
