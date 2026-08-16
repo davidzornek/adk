@@ -10,7 +10,9 @@ docstring and the ``ruff``/``mypy`` excludes in ``pyproject.toml``), and stays u
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+import json
+from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -47,3 +49,16 @@ class RunResult(BaseModel):
 # identical to eval_harness.harness.MetricFn; defined fresh here since harness.py is dead
 # scaffolding (see its module docstring) and cannot be imported.
 MetricFn = Callable[[EvalCase, RunResult], Mapping[str, Any] | BaseModel]
+
+
+def dump_eval_cases(cases: Sequence[EvalCase], path: str | Path) -> None:
+    """Write ``cases`` to ``path`` as a JSON array, creating parent directories as needed."""
+    dest = Path(path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps([case.model_dump() for case in cases], indent=2) + "\n")
+
+
+def load_eval_cases(path: str | Path) -> list[EvalCase]:
+    """Load a list of :class:`EvalCase` rows from a JSON file written by :func:`dump_eval_cases`."""
+    rows = json.loads(Path(path).read_text())
+    return [EvalCase.model_validate(row) for row in rows]

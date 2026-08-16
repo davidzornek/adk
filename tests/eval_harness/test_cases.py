@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from adk.eval_harness.cases import EvalCase, ExpectedStep, RunResult
+from pathlib import Path
+
+from adk.eval_harness.cases import (
+    EvalCase,
+    ExpectedStep,
+    RunResult,
+    dump_eval_cases,
+    load_eval_cases,
+)
 
 
 def test_eval_case_defaults() -> None:
@@ -35,3 +43,20 @@ def test_expected_step_round_trips_executor_id_and_tool_name() -> None:
 
     assert step.executor_id == "calc"
     assert step.tool_name == "calculate"
+
+
+def test_dump_and_load_eval_cases_round_trip(tmp_path: Path) -> None:
+    cases = [
+        EvalCase(
+            id="c1",
+            task="do x",
+            expected_steps=[ExpectedStep(executor_id="search", tool_name="web_search")],
+        ),
+        EvalCase(id="c2", task="do y"),
+    ]
+    dest = tmp_path / "nested" / "cases.json"
+
+    dump_eval_cases(cases, dest)
+    loaded = load_eval_cases(dest)
+
+    assert loaded == cases
